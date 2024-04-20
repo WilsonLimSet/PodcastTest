@@ -1,44 +1,74 @@
-from dotenv import load_dotenv
 import os
-import requests
+import json
+from datetime import datetime
 from pytube import YouTube
 import google.generativeai as genai
+from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+def setup_environment():
+    """Load environment variables and configure API."""
+    load_dotenv()
+    GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+    genai.configure(api_key=GOOGLE_API_KEY)
 
-# Retrieve API key from environment variables
-GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+def download_audio_from_youtube(url):
+    """Download the highest quality audio stream from YouTube."""
+    yt = YouTube(url)
+    audio_stream = yt.streams.filter(only_audio=True).first()
+    audio_file = 'sample.mp3'
+    audio_stream.download(output_path='.', filename=audio_file)
+    return yt, audio_file
 
-# Configure the API with the key
-genai.configure(api_key=GOOGLE_API_KEY)
+def get_description(yt):
+    """Retrieve and check video description availability."""
+    return yt.description if yt.description else "No description available."
 
-# URL of the file you want to download
-#URL = "https://storage.googleapis.com/generativeai-downloads/data/State_of_the_Union_Address_30_January_1961.mp3"
-#URL = "https://www.youtube.com/watch?v=xv4r18hAc1I"
-url = "https://www.youtube.com/watch?v=xv4r18hAc1I"
-yt = YouTube(url)
-audio_stream = yt.streams.filter(only_audio=True).first()
+def generate_content_from_model(prompt, model, upload_path=None):
+    """Generate content using the Gemini model with optional file upload."""
+    if upload_path:
+        file_id = genai.upload_file(path=upload_path)
+        return model.generate_content([prompt, file_id])
+    return model.generate_content([prompt])
 
-print(yt.thumbnail_url)
-audio_stream.download(output_path='.', filename='sample.mp3')
+def output_to_json(data, filename='output_data.json'):
+    """Output data to a JSON file."""
+    with open(filename, 'w') as json_file:
+        json.dump(data, json_file, indent=4)
 
+def main():
+    setup_environment()
+    url = "https://www.youtube.com/watch?v=xv4r18hAc1I"
+    yt, audio_file = download_audio_from_youtube(url)
+    description = get_description(yt)
+    print(description)
 
-# Download the file using requests
-#response = requests.get(URL)
-# if response.status_code == 200:
-#     with open('sample.mp3', 'wb') as f:
-#         f.write(response.content)
+    model = genai.GenerativeModel('models/gemini-1.5-pro-latest')
 
-# Upload the file using the Google API
-your_file = genai.upload_file(path='sample.mp3')
+    # Extract interviewee's name
+    if description != "No description available.":
+        prompt_for_name = f"From the following description, identify the name of the interviewee and dont give anything else besides the full name:: {description}"
+        response_for_name = generate_content_from_model(prompt_for_name, model)
+        interviewee_name = response_for_name.text.strip()
+    else:
+        interviewee_name = "Unknown"
 
-prompt = "Listen carefully to the following audio file. Provide a brief summary with timestamps of when he said what."
-model = genai.GenerativeModel('models/gemini-1.5-pro-latest')
-response = model.generate_content([prompt, your_file])
+    # Generate insights from the audio
+    prompt_for_insights = "Listen carefully to the following audio file. Provide the 3 most interesting insights."
+    response_for_insights = generate_content_from_model(prompt_for_insights, model, upload_path=audio_file)
 
-# Output the response to a text file
-with open('output.txt', 'w') as file:
-    file.write(response.text)
+    # Compile output data
+    output_data = {
+        "publish_date": yt.publish_date.strftime("%Y-%m-%d") if yt.publish_date else "Unknown publish date",
+        "youtube_url": yt.watch_url,
+        "thumbnail_url": yt.thumbnail_url,
+        "interviewer": yt.author,
+        "interviewee": interviewee_name,
+        "insights": response_for_insights.text
+    }
 
-print(response.text)
+    output_to_json(output_data)
+    print("Interviewee Identified:", interviewee_name)
+    print("Insights:", response_for_insights.text)
+
+if __name__ == "__main__":
+    main()
