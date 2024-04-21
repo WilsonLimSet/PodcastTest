@@ -6,9 +6,8 @@ from src.db.client import Client as DBClient
 from src.models.model import Model as GeminiModel
 
 class Summarizer:
-    """
-    Given some url, summarize it into a JSON object
-    """
+    """Summarizes a list of YouTube urls, then stores them in a Supabase DB."""
+
     def __init__(self):
         load_dotenv()
         
@@ -53,6 +52,7 @@ class Summarizer:
 
     def process_youtube_videos(self, urls):
         """Process each YouTube video URL for content generation and upload the results if not already in the database."""
+        
         for url in urls:
             if self.db.url_exists(url):
                 print(f"URL present in DB, skipping: {url}")
