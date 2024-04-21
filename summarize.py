@@ -8,9 +8,6 @@ from supabase import create_client, Client
 from youtubeScraper import return_urls
 from urllib.parse import urlparse, urlunparse
 
-
-
-
 def setup_environment():
     """Load environment variables and configure APIs."""
     load_dotenv()
@@ -95,14 +92,24 @@ def process_youtube_videos(urls, supabase):
             description = yt.description or "No description available."
             #print(description)
             if description != "No description available.":
-                prompt_name = f"Identify only the name of the interviewee from this description: {description}"
+                prompt_name = f"Identify only the name of the interviewee from this description: {description}. It is imperative you **only give the name of the interviewee"
                 response_name = generate_content(prompt_name, model)
                 interviewee_name = response_name.text.strip() if response_name else "Unknown"
             else:
                 interviewee_name = "Unknown"
 
-            prompt_insights = "Provide the 3 most interesting insights from this audio."
+            prompt_insights = "Provide the 3 most interesting insights from this audio in only 1 sentences each seperated by two newline characters (\n\n) and no heading."
             response_insights = generate_content(prompt_insights, model, upload_path=audio_file)
+            print(response_insights.text)
+            if response_insights:
+                insights = response_insights.text.split("\n\n")[:3]  # Split the insights and take the first three
+                insight_1 = insights[0] if len(insights) > 0 else "No insights could be generated."
+                insight_2 = insights[1] if len(insights) > 1 else "No second insight could be generated."
+                insight_3 = insights[2] if len(insights) > 2 else "No third insight could be generated."
+            else:
+                insight_1 = "No insights could be generated."
+                insight_2 = "No insights could be generated."
+                insight_3 = "No insights could be generated."
 
             output_data = {
                 "publish_date": yt.publish_date.strftime("%Y-%m-%d") if yt.publish_date else "Unknown publish date",
@@ -110,21 +117,18 @@ def process_youtube_videos(urls, supabase):
                 "thumbnail_url": yt.thumbnail_url,
                 "interviewer": yt.author,
                 "interviewee": interviewee_name,
-                "insights": response_insights.text if response_insights else "No insights could be generated."
+                "insight_1": insight_1,
+                "insight_2": insight_2,
+                "insight_3": insight_3,
+
             }
 
-            output_to_json(output_data, f"{yt.video_id}_data.json")
+        
             upload_data_to_supabase(supabase, output_data)
 
             print(f"Processed: {yt.title}")
         except ValueError as e:
             print(f"Skipping URL due to error: {str(e)}")
-
-
-def output_to_json(data, filename):
-    """Output data to a JSON file."""
-    with open(filename, 'w') as file:
-        json.dump(data, file, indent=4)
 
 def main():
     supabase = setup_environment()
