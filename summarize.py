@@ -6,6 +6,8 @@ from pytube import YouTube
 import google.generativeai as genai
 from supabase import create_client, Client
 from youtubeScraper import return_urls
+from pytube import Playlist
+import time 
 from urllib.parse import urlparse, urlunparse
 
 def setup_environment():
@@ -55,8 +57,8 @@ def url_exists_in_supabase(supabase, url):
 def download_audio(url):
     """Download the highest quality audio stream from YouTube if duration <= 1 hour."""
     yt = YouTube(url)
-    if yt.length > 3600:
-        raise ValueError("Video duration exceeds 1 hour.")
+    if yt.length > 8600:
+        raise ValueError("Video duration exceeds 2 hour.")
     audio_stream = yt.streams.filter(only_audio=True).first()
     if not audio_stream:
         raise ValueError("No audio streams available.")
@@ -79,10 +81,11 @@ def generate_content(prompt, model, upload_path=None):
 def upload_data_to_supabase(supabase, data):
     supabase.table('Podcasts').insert(data).execute()
 
-def process_youtube_videos(urls, supabase):
+def process_youtube_videos( supabase):
     """Process each YouTube video URL for content generation and upload the results if not already in the database."""
     model = genai.GenerativeModel('models/gemini-1.5-pro-latest')
-    for url in urls:
+    p = Playlist('https://www.youtube.com/playlist?list=PL-GTGzXj_qq_pZCl6F2n1EsWtoet9dciH')
+    for url in p.video_urls:
         #print(f"Checking URL: {url}")
         if url_exists_in_supabase(supabase, url):
             print(f"URL already exists, skipping: {url}")
@@ -102,7 +105,7 @@ def process_youtube_videos(urls, supabase):
             response_insights = generate_content(prompt_insights, model, upload_path=audio_file)
             print(response_insights.text)
             if response_insights:
-                insights = response_insights.text.split("\n\n")[:3]  # Split the insights and take the first three
+                insights = [insight.strip() for insight in response_insights.text.split("\n\n")][:3]
                 insight_1 = insights[0] if len(insights) > 0 else "No insights could be generated."
                 insight_2 = insights[1] if len(insights) > 1 else "No second insight could be generated."
                 insight_3 = insights[2] if len(insights) > 2 else "No third insight could be generated."
@@ -122,18 +125,17 @@ def process_youtube_videos(urls, supabase):
                 "insight_3": insight_3,
 
             }
-
-        
             upload_data_to_supabase(supabase, output_data)
-
             print(f"Processed: {yt.title}")
+            time.sleep(30)
+
         except ValueError as e:
             print(f"Skipping URL due to error: {str(e)}")
 
 def main():
     supabase = setup_environment()
-    urls = return_urls("podcast")
-    process_youtube_videos(urls, supabase)
+    #urls = return_urls("podcast")
+    process_youtube_videos(supabase)
 
 if __name__ == "__main__":
     main()

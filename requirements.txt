@@ -1,0 +1,8 @@
+os
+json
+datetime
+dotenv
+pytube
+google-generativeai
+supabase
+youtubeScraper
