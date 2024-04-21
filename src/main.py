@@ -1,9 +1,13 @@
+from pytube import Playlist
 from src.summarizer import Summarizer
 
 def main():
     summarizer = Summarizer()
-    urls = ["https://www.youtube.com/watch?v=8HrzoEvLWH0"]
-    summarizer.process_youtube_videos(urls)
+
+    CURATED_PLAYLIST = "https://www.youtube.com/playlist?list=PL-GTGzXj_qq_pZCl6F2n1EsWtoet9dciH"
+    playlist = Playlist(CURATED_PLAYLIST)
+    
+    summarizer.process_youtube_videos(playlist.video_urls)
 
 if __name__ == "__main__":
     main()

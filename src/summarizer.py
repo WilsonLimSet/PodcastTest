@@ -1,3 +1,4 @@
+import time
 import json
 from dotenv import load_dotenv
 from pytube import YouTube
@@ -18,6 +19,9 @@ class Summarizer:
         """Download the highest quality audio stream from YouTube if duration <= 1 hour."""
         
         yt = YouTube(url)
+        if yt.length > 8600: # in minutes
+            raise ValueError(f"Video duration too long: {yt.length}")
+        
         audio_stream = yt.streams.filter(only_audio=True).first()
         if not audio_stream:
             raise ValueError("No audio streams available.")
@@ -83,6 +87,9 @@ class Summarizer:
                 
                 print(f'"{yt.title}"')
                 print(json.dumps(data, indent=4))
+            
+                # Don't get rate-limited
+                time.sleep(1)
 
             except ValueError as e:
                 print(f"Skipping URL {url} due to error: {str(e)}")
